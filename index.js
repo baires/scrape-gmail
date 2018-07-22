@@ -20,6 +20,14 @@ const filename = (m) => `${m.data.id}.txt`;
 // emails that are verbatim identical are deduplicated.
 const q = 'from: me@example.com send me these emails';
 
+// What to put into the generated file
+// m is a google.gmail.users.Message as with filename
+// body is the decoded body of the message
+const writeEmail = (m, body) => `${moment(m.data.internalDate, 'x').format()}\n\n${body}`;
+
+// Port to listen on.  This affects how the GMail API credentials are configured
+// (see ./client_id.json)
+const PORT = 3000;
 
 const express = require('express');
 const config = require('./client_id.json').web;
@@ -52,6 +60,11 @@ function getMessages(callback, pageToken = null, result = []) {
 
         if (err) {
             throw err;
+        }
+
+        if (ret.data.resultSizeEstimate === 0) {
+            callback([]);
+            return;
         }
 
         result.push(...ret.data.messages);
@@ -126,9 +139,14 @@ app.get('/emails', (req, res) => {
 
             messages.forEach((m) => {
 
-                let date = moment(m.data.internalDate, 'x').format();
-                let body = Buffer.from(m.data.payload.body.data, 'base64').toString();
+                let msgBody = m.data.payload.body;
 
+                // grab the first part out of multipart messages
+                if (m.data.payload.mimeType === 'multipart/alternative') {
+                    msgBody = m.data.payload.parts[0].body;
+                }
+
+                let body = Buffer.from(msgBody.data, 'base64').toString();
                 let sha = crypto.createHash('sha1').update(body).digest('hex');
 
                 if (seen.includes(sha)) {
@@ -143,12 +161,13 @@ app.get('/emails', (req, res) => {
                         throw err;
                     }
 
-                    fs.writeSync(fd, `${date}\n\n${body}`);
+                    fs.writeSync(fd, writeEmail(m, body));
 
                 });
                 
             });
 
+            res.header('Content-Type', 'text/plain');
             res.send('OK');
         });
 
@@ -157,4 +176,4 @@ app.get('/emails', (req, res) => {
 
 });
 
-app.listen(3000, () => console.log('running'));
+app.listen(PORT, () => console.log('running'));
