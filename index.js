@@ -18,7 +18,7 @@ const filename = (m) => `${m.data.id}.txt`;
 // What to search for - use the search in GMail web UI
 // to find what you're looking for, then paste it here.
 // emails that are verbatim identical are deduplicated.
-const q = 'from: noreply@arrayofstars.com contact form on ATD';
+const q = 'from: me@example.com send me these emails';
 
 
 const express = require('express');
